@@ -76,21 +76,21 @@ export default function Home() {
   }, [messages, streamingText])
 
   async function handleNewSession() {
-    const session = await createChatSession(supabase, '??梨꾪똿')
+    const session = await createChatSession(supabase, '새 채팅')
     setSessions((prev) => [session, ...prev])
     setActiveSessionId(session.id)
     setMessages([])
   }
 
   async function handleRename(sessionId: string) {
-    const newTitle = window.prompt('??梨꾪똿 ?대쫫???낅젰?섏꽭??)
+    const newTitle = window.prompt('새 채팅 이름을 입력하세요')
     if (!newTitle) return
     await updateSessionTitle(supabase, sessionId, newTitle)
     setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, title: newTitle } : s)))
   }
 
   async function handleDelete(sessionId: string) {
-    if (!window.confirm('??梨꾪똿????젣?섏떆寃좎뒿?덇퉴?')) return
+    if (!window.confirm('이 채팅을 삭제하시겠습니까?')) return
     await deleteSession(supabase, sessionId)
     setSessions((prev) => prev.filter((s) => s.id !== sessionId))
     if (activeSessionId === sessionId) {
@@ -129,8 +129,8 @@ export default function Home() {
       setMessages((prev) => [...prev, assistantMsg])
 
       const currentSession = sessions.find((s) => s.id === activeSessionId)
-      if (currentSession && (currentSession.title === '??梨꾪똿' || currentSession.title === 'New Chat')) {
-        const autoTitle = historyForModel[0]?.content.slice(0, 30) || '??梨꾪똿'
+      if (currentSession && (currentSession.title === '새 채팅' || currentSession.title === 'New Chat')) {
+        const autoTitle = historyForModel[0]?.content.slice(0, 30) || '새 채팅'
         await updateSessionTitle(supabase, activeSessionId, autoTitle)
         setSessions((prev) =>
           prev.map((s) => (s.id === activeSessionId ? { ...s, title: autoTitle } : s))
@@ -138,7 +138,7 @@ export default function Home() {
       }
     } catch (e) {
       if ((e as Error).name !== 'AbortError') {
-        console.error('AI ?묐떟 ?ㅽ뙣:', e)
+        console.error('AI 응답 실패:', e)
         setFetchError(String(e))
       }
     } finally {
@@ -180,14 +180,14 @@ export default function Home() {
     abortRef.current?.abort()
   }
 
-  if (loading) return <div className="p-6">濡쒓렇??泥섎━ 以?..</div>
+  if (loading) return <div className="p-6">로그인 처리 중...</div>
 
   if (needsAuth) return <AuthForm />
 
   if (errorMsg) {
     return (
       <div className="p-6 text-red-600">
-        <p className="font-bold">濡쒓렇???ㅻ쪟:</p>
+        <p className="font-bold">로그인 오류:</p>
         <pre className="whitespace-pre-wrap">{errorMsg}</pre>
       </div>
     )
@@ -204,13 +204,13 @@ export default function Home() {
           onClick={handleNewSession}
           className="w-full bg-black dark:bg-white text-white dark:text-black rounded px-3 py-2"
         >
-          + ??梨꾪똿
+          + 새 채팅
         </button>
 
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="梨꾪똿 寃??
+          placeholder="채팅 검색"
           className="w-full border dark:border-gray-600 rounded px-2 py-1 text-sm bg-transparent"
         />
 
@@ -226,29 +226,34 @@ export default function Home() {
                 onClick={() => setActiveSessionId(s.id)}
                 className="flex-1 text-left px-3 py-2 truncate text-sm"
               >
-                {s.is_pinned ? '?뱦 ' : ''}
+                {s.is_pinned ? '📌 ' : ''}
                 {s.title}
               </button>
               <div className="hidden group-hover:flex gap-1 pr-2 text-xs">
-                <button onClick={() => handleTogglePin(s)} title="怨좎젙">?뱦</button>
-                <button onClick={() => handleRename(s.id)} title="?대쫫蹂寃?>?륅툘</button>
-                <button onClick={() => handleDelete(s.id)} title="??젣">?뿊截?/button>
+                <button onClick={() => handleTogglePin(s)} title="고정">📌</button>
+                <button onClick={() => handleRename(s.id)} title="이름변경">✏️</button>
+                <button onClick={() => handleDelete(s.id)} title="삭제">🗑️</button>
               </div>
             </div>
           ))}
         </div>
 
         <button onClick={toggleDark} className="text-sm border dark:border-gray-600 rounded px-2 py-1">
-          {dark ? '?截??쇱씠??紐⑤뱶' : '?뙔 ?ㅽ겕 紐⑤뱶'}
+          {dark ? '☀️ 라이트 모드' : '🌙 다크 모드'}
         </button>
 
         <div className="border-t dark:border-gray-700 pt-2 text-xs space-y-1">
+          {isAdmin && (
+            <Link href="/admin" className="block text-blue-600 hover:underline">
+              👑 관리자 페이지
+            </Link>
+          )}
           <p className="truncate text-gray-500">{email}</p>
           <button
             onClick={handleLogout}
             className="w-full text-left text-red-600 hover:underline"
           >
-            濡쒓렇?꾩썐
+            로그아웃
           </button>
         </div>
       </aside>
@@ -278,7 +283,7 @@ export default function Home() {
           {sending && (
             <div className="text-left">
               <div className="inline-block rounded px-3 py-2 max-w-[80%] bg-gray-100 dark:bg-gray-800">
-                <MarkdownMessage content={streamingText || '?앷컖 以?..'} />
+                <MarkdownMessage content={streamingText || '생각 중...'} />
               </div>
             </div>
           )}
@@ -292,7 +297,7 @@ export default function Home() {
               onClick={handleStop}
               className="self-start text-sm border rounded px-3 py-1 text-red-600 border-red-300"
             >
-              ???묐떟 ?뺤?
+              ⏹ 응답 정지
             </button>
           ) : (
             messages.length > 0 && (
@@ -300,7 +305,7 @@ export default function Home() {
                 onClick={handleRegenerate}
                 className="self-start text-sm border dark:border-gray-600 rounded px-3 py-1"
               >
-                ?봽 ?ㅼ떆 ?앹꽦
+                🔄 다시 생성
               </button>
             )
           )}
@@ -311,7 +316,7 @@ export default function Home() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               className="flex-1 border dark:border-gray-600 rounded px-3 py-2 bg-transparent"
-              placeholder="硫붿떆吏瑜??낅젰?섏꽭??
+              placeholder="메시지를 입력하세요"
               disabled={sending || !activeSessionId}
             />
             <button
@@ -319,7 +324,8 @@ export default function Home() {
               className="bg-black dark:bg-white text-white dark:text-black rounded px-4 py-2"
               disabled={sending || !activeSessionId}
             >
-              蹂대궡湲?            </button>
+              보내기
+            </button>
           </div>
         </div>
       </main>
