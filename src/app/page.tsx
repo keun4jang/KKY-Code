@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useEnsureSession } from '@/lib/useEnsureSession'
-import Link from 'next/link'
 import { AuthForm } from '@/components/AuthForm'
+import { SettingsModal } from '@/components/SettingsModal'
 import {
   createChatSession,
   getChatSessions,
@@ -31,27 +31,12 @@ export default function Home() {
   const [sending, setSending] = useState(false)
   const [streamingText, setStreamingText] = useState('')
   const [search, setSearch] = useState('')
-  const [dark, setDark] = useState(false)
   const [lastUserText, setLastUserText] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   const abortRef = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const saved = localStorage.getItem('theme')
-    if (saved === 'dark') {
-      setDark(true)
-      document.documentElement.classList.add('dark')
-    }
-  }, [])
-
-  function toggleDark() {
-    const next = !dark
-    setDark(next)
-    document.documentElement.classList.toggle('dark', next)
-    localStorage.setItem('theme', next ? 'dark' : 'light')
-  }
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -205,7 +190,7 @@ export default function Home() {
       )}
 
       <aside
-        className={`fixed md:static inset-y-0 left-0 z-30 w-64 shrink-0 border-r dark:border-gray-700 p-4 space-y-2 flex flex-col bg-white dark:bg-gray-900 transition-transform duration-200 ${
+        className={`fixed md:static inset-y-0 left-0 z-30 w-64 shrink-0 border-r dark:border-gray-700 p-4 pt-[max(1rem,env(safe-area-inset-top))] space-y-2 flex flex-col bg-white dark:bg-gray-900 transition-transform duration-200 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         } md:translate-x-0`}
       >
@@ -253,28 +238,31 @@ export default function Home() {
           ))}
         </div>
 
-        <button onClick={toggleDark} className="text-sm border dark:border-gray-600 rounded px-2 py-1">
-          {dark ? '☀️ 라이트 모드' : '🌙 다크 모드'}
-        </button>
-
         <div className="border-t dark:border-gray-700 pt-2 text-xs space-y-1">
-          {isAdmin && (
-            <Link href="/admin" className="block text-blue-600 hover:underline">
-              👑 관리자 페이지
-            </Link>
-          )}
           <p className="truncate text-gray-500">{email}</p>
           <button
-            onClick={handleLogout}
-            className="w-full text-left text-red-600 hover:underline"
+            onClick={() => setSettingsOpen(true)}
+            className="w-full text-left hover:underline"
           >
-            로그아웃
+            ⚙️ 설정
           </button>
         </div>
       </aside>
 
+      {settingsOpen && (
+        <SettingsModal
+          email={email}
+          isAdmin={isAdmin}
+          onClose={() => setSettingsOpen(false)}
+          onLogout={() => {
+            setSettingsOpen(false)
+            handleLogout()
+          }}
+        />
+      )}
+
       <main className="flex-1 flex flex-col min-w-0">
-        <div className="md:hidden p-2 border-b dark:border-gray-700">
+        <div className="md:hidden p-2 pt-[max(0.5rem,env(safe-area-inset-top))] border-b dark:border-gray-700">
           <button
             onClick={() => setSidebarOpen(true)}
             className="text-sm border dark:border-gray-600 rounded px-2 py-1"
@@ -315,7 +303,7 @@ export default function Home() {
           <div ref={bottomRef} />
         </div>
 
-        <div className="p-4 border-t dark:border-gray-700 flex flex-col gap-2">
+        <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t dark:border-gray-700 flex flex-col gap-2">
           {sending ? (
             <button
               onClick={handleStop}
