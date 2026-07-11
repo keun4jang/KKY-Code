@@ -16,6 +16,7 @@ import {
 import { streamAssistantReply } from '@/lib/gemini'
 import { useGeoLocation } from '@/lib/useGeoLocation'
 import { MarkdownMessage } from '@/components/MarkdownMessage'
+import { getUsage, type Usage } from '@/lib/usage'
 import pkg from '../../package.json'
 
 type ChatSession = { id: string; title: string; is_pinned: boolean }
@@ -35,6 +36,7 @@ export default function Home() {
   const [lastUserText, setLastUserText] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [usage, setUsage] = useState<Usage | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -50,6 +52,14 @@ export default function Home() {
   useEffect(() => {
     if (needsAuth || loading) return
     getChatSessions().then(setSessions).catch((e) => setFetchError(String(e)))
+  }, [needsAuth, loading])
+
+  useEffect(() => {
+    if (needsAuth || loading) return
+    const refreshUsage = () => getUsage().then(setUsage).catch(() => {})
+    refreshUsage()
+    const interval = setInterval(refreshUsage, 30000)
+    return () => clearInterval(interval)
   }, [needsAuth, loading])
 
   useEffect(() => {
@@ -111,6 +121,7 @@ export default function Home() {
       )
       const assistantMsg = await sendMessage(activeSessionId, 'assistant', finalText)
       setMessages((prev) => [...prev, assistantMsg])
+      getUsage().then(setUsage).catch(() => {})
 
       const currentSession = sessions.find((s) => s.id === activeSessionId)
       if (currentSession && (currentSession.title === '새 채팅' || currentSession.title === 'New Chat')) {
@@ -198,6 +209,11 @@ export default function Home() {
         <p className="text-[11px] text-center text-green-600 dark:text-green-400 font-semibold">
           🎉 완전 무료로 이용 가능한 AI 챗봇
         </p>
+        {usage && (
+          <p className="text-[11px] text-center text-gray-500">
+            오늘 남은 질문 (전체 공용): {usage.remaining} / {usage.limit}
+          </p>
+        )}
 
         <button
           onClick={() => {
@@ -300,6 +316,11 @@ export default function Home() {
               <p className="text-xs text-green-600 dark:text-green-400 font-semibold">
                 🎉 이 앱은 완전 무료로 이용하실 수 있습니다
               </p>
+              {usage && (
+                <p className="text-xs text-gray-500">
+                  오늘 남은 질문 (전체 공용): {usage.remaining} / {usage.limit}
+                </p>
+              )}
             </div>
           )}
 
