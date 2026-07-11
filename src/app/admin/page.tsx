@@ -14,6 +14,8 @@ export default function AdminPage() {
   const [messages, setMessages] = useState<AdminMessage[]>([])
   const [error, setError] = useState<string | null>(null)
 
+  const selectedUser = users.find((u) => u.id === selectedUserId) ?? null
+
   useEffect(() => {
     if (!isAdmin) return
     getAllUsers().then(setUsers).catch((e) => setError(String(e)))
@@ -55,6 +57,7 @@ export default function AdminPage() {
                 }`}
               >
                 {u.is_admin ? "👑 " : ""}
+                {u.name ? `${u.name} · ` : ""}
                 {u.email}
               </button>
             </li>
@@ -63,6 +66,15 @@ export default function AdminPage() {
       </div>
 
       <div className="w-64 shrink-0 border-r dark:border-gray-700 p-4 overflow-y-auto">
+        {selectedUser && (
+          <div className="mb-4 text-xs text-gray-600 dark:text-gray-400 space-y-0.5 border-b dark:border-gray-700 pb-3">
+            <p className="font-semibold text-black dark:text-white">{selectedUser.name || "(이름 없음)"}</p>
+            <p>{selectedUser.email}</p>
+            <p>생년월일: {selectedUser.date_of_birth || "-"}</p>
+            <p>전화번호: {selectedUser.phone || "-"}</p>
+            <p>주소: {selectedUser.address || "-"}</p>
+          </div>
+        )}
         <h2 className="font-bold mb-4">채팅 세션</h2>
         <ul className="space-y-1">
           {sessions.map((s) => (

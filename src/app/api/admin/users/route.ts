@@ -9,7 +9,7 @@ export const GET = apiHandler(async () => {
 
   const db = sql()
   const rows = await db`
-    select id, email, is_admin, created_at
+    select id, email, is_admin, created_at, name, date_of_birth, phone, address
     from users
     order by created_at desc
   `

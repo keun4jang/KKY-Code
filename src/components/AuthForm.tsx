@@ -8,6 +8,10 @@ export function AuthForm({ onAuthenticated }: { onAuthenticated?: () => void }) 
   const [mode, setMode] = useState<"login" | "signup">("login")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [name, setName] = useState("")
+  const [dateOfBirth, setDateOfBirth] = useState("")
+  const [phone, setPhone] = useState("")
+  const [address, setAddress] = useState("")
   const [rememberEmail, setRememberEmail] = useState(false)
   const [autoLogin, setAutoLogin] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -27,10 +31,18 @@ export function AuthForm({ onAuthenticated }: { onAuthenticated?: () => void }) 
     setLoading(true)
 
     try {
+      const body: Record<string, unknown> = { email, password, autoLogin }
+      if (mode === "signup") {
+        body.name = name
+        body.date_of_birth = dateOfBirth
+        body.phone = phone
+        body.address = address
+      }
+
       const res = await fetch(`/api/auth/${mode === "signup" ? "signup" : "login"}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, autoLogin }),
+        body: JSON.stringify(body),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "요청이 실패했습니다.")
@@ -50,7 +62,7 @@ export function AuthForm({ onAuthenticated }: { onAuthenticated?: () => void }) 
   }
 
   return (
-    <div className="flex h-screen items-center justify-center bg-white dark:bg-gray-900 text-black dark:text-white">
+    <div className="flex h-screen items-center justify-center bg-white dark:bg-gray-900 text-black dark:text-white overflow-y-auto py-8">
       <form onSubmit={handleSubmit} className="w-80 border dark:border-gray-700 rounded p-6 space-y-4">
         <h1 className="text-lg font-bold text-center">
           {mode === "login" ? "로그인" : "회원가입"}
@@ -74,6 +86,47 @@ export function AuthForm({ onAuthenticated }: { onAuthenticated?: () => void }) 
           minLength={6}
           className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-transparent"
         />
+
+        {mode === "signup" && (
+          <>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="이름"
+              required
+              className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-transparent"
+            />
+
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">생년월일</label>
+              <input
+                type="date"
+                value={dateOfBirth}
+                onChange={(e) => setDateOfBirth(e.target.value)}
+                required
+                className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-transparent"
+              />
+            </div>
+
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="핸드폰 번호"
+              required
+              className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-transparent"
+            />
+
+            <input
+              type="text"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="주소 (선택)"
+              className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-transparent"
+            />
+          </>
+        )}
 
         <div className="space-y-1 text-sm">
           <label className="flex items-center gap-2">

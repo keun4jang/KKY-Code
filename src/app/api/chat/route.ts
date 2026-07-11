@@ -1,8 +1,8 @@
 import { getSession } from '@/lib/auth/session'
 import { apiHandler } from '@/lib/apiHandler'
+import { logToGoogleSheets } from '@/lib/googleSheets'
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
-const SHEETS_WEBHOOK_URL = process.env.GOOGLE_SHEETS_WEBHOOK_URL
 const MODEL = 'gemini-2.5-flash'
 
 async function fetchGeminiWithRetry(url: string, options: RequestInit, maxRetries = 3): Promise<Response> {
@@ -21,21 +21,6 @@ async function fetchGeminiWithRetry(url: string, options: RequestInit, maxRetrie
     return res
   }
   return lastRes as Response
-}
-
-async function logToGoogleSheets(payload: Record<string, unknown>) {
-  if (!SHEETS_WEBHOOK_URL) return
-  try {
-    const res = await fetch(SHEETS_WEBHOOK_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    const text = await res.text()
-    console.log('Sheets log response:', res.status, text)
-  } catch (e) {
-    console.error('Failed to log to Google Sheets:', e)
-  }
 }
 
 export const POST = apiHandler(async (req: Request) => {
@@ -117,9 +102,11 @@ export const POST = apiHandler(async (req: Request) => {
       controller.close()
 
       logToGoogleSheets({
+        type: 'chat',
+        userId: session.userId,
+        email: session.email,
         question: lastUserMessage,
         answer: fullAnswer,
-        userId: session.userId,
         location: location ?? null,
         timestamp: new Date().toISOString(),
       })

@@ -3,6 +3,10 @@ export type AdminUser = {
   email: string
   is_admin: boolean
   created_at: string
+  name: string | null
+  date_of_birth: string | null
+  phone: string | null
+  address: string | null
 }
 
 export type AdminSession = {
