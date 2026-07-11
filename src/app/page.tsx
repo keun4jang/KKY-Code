@@ -194,6 +194,10 @@ export default function Home() {
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         } md:translate-x-0`}
       >
+        <p className="text-[11px] text-center text-green-600 dark:text-green-400 font-semibold">
+          🎉 완전 무료로 이용 가능한 AI 챗봇
+        </p>
+
         <button
           onClick={() => {
             handleNewSession()
@@ -278,6 +282,25 @@ export default function Home() {
         )}
 
         <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-4 space-y-4">
+          {!activeSessionId && (
+            <div className="h-full flex flex-col items-center justify-center text-center gap-3 text-gray-500 dark:text-gray-400">
+              <p className="text-sm">
+                아직 대화가 없습니다.
+                <br />
+                왼쪽 위 <span className="font-semibold text-black dark:text-white">&quot;+ 새 채팅&quot;</span> 버튼을 눌러 대화를 시작해보세요!
+              </p>
+              <button
+                onClick={handleNewSession}
+                className="bg-black dark:bg-white text-white dark:text-black rounded px-4 py-2 text-sm"
+              >
+                + 새 채팅 시작하기
+              </button>
+              <p className="text-xs text-green-600 dark:text-green-400 font-semibold">
+                🎉 이 앱은 완전 무료로 이용하실 수 있습니다
+              </p>
+            </div>
+          )}
+
           {messages.map((m) => (
             <div key={m.id} className={m.role === 'user' ? 'text-right' : 'text-left'}>
               <div
