@@ -5,7 +5,7 @@ import { createSessionCookie } from '@/lib/auth/session'
 import { apiHandler } from '@/lib/apiHandler'
 
 export const POST = apiHandler(async (req: Request) => {
-  const { email, password } = await req.json()
+  const { email, password, autoLogin } = await req.json()
 
   if (typeof email !== 'string' || typeof password !== 'string' || password.length < 6) {
     return NextResponse.json({ error: '이메일과 6자 이상의 비밀번호를 입력하세요.' }, { status: 400 })
@@ -26,7 +26,7 @@ export const POST = apiHandler(async (req: Request) => {
     returning id, email, is_admin
   `
 
-  await createSessionCookie({ userId: user.id, email: user.email, isAdmin: user.is_admin })
+  await createSessionCookie({ userId: user.id, email: user.email, isAdmin: user.is_admin }, Boolean(autoLogin))
 
   return NextResponse.json({ userId: user.id, email: user.email, isAdmin: user.is_admin })
 })

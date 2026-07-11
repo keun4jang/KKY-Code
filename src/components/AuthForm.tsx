@@ -1,13 +1,25 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+
+const SAVED_EMAIL_KEY = "savedEmail"
 
 export function AuthForm({ onAuthenticated }: { onAuthenticated?: () => void }) {
   const [mode, setMode] = useState<"login" | "signup">("login")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [rememberEmail, setRememberEmail] = useState(false)
+  const [autoLogin, setAutoLogin] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    const saved = localStorage.getItem(SAVED_EMAIL_KEY)
+    if (saved) {
+      setEmail(saved)
+      setRememberEmail(true)
+    }
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -18,10 +30,16 @@ export function AuthForm({ onAuthenticated }: { onAuthenticated?: () => void }) 
       const res = await fetch(`/api/auth/${mode === "signup" ? "signup" : "login"}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, autoLogin }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "요청이 실패했습니다.")
+
+      if (rememberEmail) {
+        localStorage.setItem(SAVED_EMAIL_KEY, email)
+      } else {
+        localStorage.removeItem(SAVED_EMAIL_KEY)
+      }
 
       onAuthenticated?.()
     } catch (err) {
@@ -56,6 +74,25 @@ export function AuthForm({ onAuthenticated }: { onAuthenticated?: () => void }) 
           minLength={6}
           className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-transparent"
         />
+
+        <div className="space-y-1 text-sm">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={rememberEmail}
+              onChange={(e) => setRememberEmail(e.target.checked)}
+            />
+            이메일 기억하기
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={autoLogin}
+              onChange={(e) => setAutoLogin(e.target.checked)}
+            />
+            자동 로그인
+          </label>
+        </div>
 
         {message && <p className="text-sm text-red-600 whitespace-pre-wrap">{message}</p>}
 

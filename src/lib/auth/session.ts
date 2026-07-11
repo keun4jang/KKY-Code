@@ -14,7 +14,7 @@ export type SessionPayload = {
   isAdmin: boolean
 }
 
-export async function createSessionCookie(payload: SessionPayload) {
+export async function createSessionCookie(payload: SessionPayload, autoLogin = true) {
   const token = await new SignJWT({ ...payload })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
@@ -27,7 +27,8 @@ export async function createSessionCookie(payload: SessionPayload) {
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
-    maxAge: MAX_AGE_SECONDS,
+    // Omitting maxAge makes it a session cookie that clears when the browser/app fully closes.
+    ...(autoLogin ? { maxAge: MAX_AGE_SECONDS } : {}),
   })
 }
 
