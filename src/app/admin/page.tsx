@@ -38,8 +38,8 @@ export default function AdminPage() {
   if (!isAdmin) return <div className="p-6">관리자 권한이 없습니다. <Link href="/" className="underline">메인으로</Link></div>
 
   return (
-    <div className="flex h-screen bg-white dark:bg-gray-900 text-black dark:text-white">
-      <div className="w-64 border-r dark:border-gray-700 p-4 overflow-y-auto">
+    <div className="flex h-screen overflow-x-auto bg-white dark:bg-gray-900 text-black dark:text-white">
+      <div className="w-64 shrink-0 border-r dark:border-gray-700 p-4 overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
           <h2 className="font-bold">사용자 목록</h2>
           <Link href="/" className="text-xs underline text-gray-500">채팅으로</Link>
@@ -62,7 +62,7 @@ export default function AdminPage() {
         </ul>
       </div>
 
-      <div className="w-64 border-r dark:border-gray-700 p-4 overflow-y-auto">
+      <div className="w-64 shrink-0 border-r dark:border-gray-700 p-4 overflow-y-auto">
         <h2 className="font-bold mb-4">채팅 세션</h2>
         <ul className="space-y-1">
           {sessions.map((s) => (
@@ -83,7 +83,7 @@ export default function AdminPage() {
         </ul>
       </div>
 
-      <div className="flex-1 p-4 overflow-y-auto space-y-3">
+      <div className="flex-1 min-w-[320px] p-4 overflow-y-auto space-y-3">
         <h2 className="font-bold mb-4">대화 내용</h2>
         {messages.map((m) => (
           <div key={m.id} className={m.role === "user" ? "text-right" : "text-left"}>

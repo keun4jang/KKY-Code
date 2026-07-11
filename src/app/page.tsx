@@ -33,6 +33,7 @@ export default function Home() {
   const [search, setSearch] = useState('')
   const [dark, setDark] = useState(false)
   const [lastUserText, setLastUserText] = useState<string | null>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const abortRef = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -195,10 +196,24 @@ export default function Home() {
   )
 
   return (
-    <div className="flex h-screen bg-white dark:bg-gray-900 text-black dark:text-white">
-      <aside className="w-64 border-r dark:border-gray-700 p-4 space-y-2 flex flex-col">
+    <div className="flex h-screen overflow-hidden bg-white dark:bg-gray-900 text-black dark:text-white">
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-20 bg-black/40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <aside
+        className={`fixed md:static inset-y-0 left-0 z-30 w-64 shrink-0 border-r dark:border-gray-700 p-4 space-y-2 flex flex-col bg-white dark:bg-gray-900 transition-transform duration-200 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        } md:translate-x-0`}
+      >
         <button
-          onClick={handleNewSession}
+          onClick={() => {
+            handleNewSession()
+            setSidebarOpen(false)
+          }}
           className="w-full bg-black dark:bg-white text-white dark:text-black rounded px-3 py-2"
         >
           + 새 채팅
@@ -220,7 +235,10 @@ export default function Home() {
               }`}
             >
               <button
-                onClick={() => setActiveSessionId(s.id)}
+                onClick={() => {
+                  setActiveSessionId(s.id)
+                  setSidebarOpen(false)
+                }}
                 className="flex-1 text-left px-3 py-2 truncate text-sm"
               >
                 {s.is_pinned ? '📌 ' : ''}
@@ -255,18 +273,27 @@ export default function Home() {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col">
+      <main className="flex-1 flex flex-col min-w-0">
+        <div className="md:hidden p-2 border-b dark:border-gray-700">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="text-sm border dark:border-gray-600 rounded px-2 py-1"
+          >
+            ☰ 메뉴
+          </button>
+        </div>
+
         {fetchError && (
           <div className="p-4 bg-red-50 text-red-600 text-sm whitespace-pre-wrap">
             {fetchError}
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-4 space-y-4">
           {messages.map((m) => (
             <div key={m.id} className={m.role === 'user' ? 'text-right' : 'text-left'}>
               <div
-                className={`inline-block rounded px-3 py-2 max-w-[80%] text-left ${
+                className={`inline-block rounded px-3 py-2 max-w-[80%] break-words text-left ${
                   m.role === 'user'
                     ? 'bg-black text-white dark:bg-white dark:text-black'
                     : 'bg-gray-100 dark:bg-gray-800'
@@ -312,13 +339,13 @@ export default function Home() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              className="flex-1 border dark:border-gray-600 rounded px-3 py-2 bg-transparent"
+              className="flex-1 min-w-0 border dark:border-gray-600 rounded px-3 py-2 bg-transparent"
               placeholder="메시지를 입력하세요"
               disabled={sending || !activeSessionId}
             />
             <button
               onClick={handleSend}
-              className="bg-black dark:bg-white text-white dark:text-black rounded px-4 py-2"
+              className="shrink-0 bg-black dark:bg-white text-white dark:text-black rounded px-4 py-2"
               disabled={sending || !activeSessionId}
             >
               보내기
