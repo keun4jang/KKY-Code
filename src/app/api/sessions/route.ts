@@ -30,3 +30,12 @@ export const POST = apiHandler(async (req: Request) => {
   `
   return NextResponse.json(row)
 })
+
+export const DELETE = apiHandler(async () => {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
+
+  const db = sql()
+  await db`delete from chat_sessions where user_id = ${session.userId}`
+  return NextResponse.json({ ok: true })
+})

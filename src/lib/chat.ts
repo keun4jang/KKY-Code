@@ -26,6 +26,10 @@ export async function deleteSession(sessionId: string) {
   await api(`/api/sessions/${sessionId}`, { method: 'DELETE' })
 }
 
+export async function deleteAllSessions() {
+  await api('/api/sessions', { method: 'DELETE' })
+}
+
 export async function togglePinSession(sessionId: string, pinned: boolean) {
   await api(`/api/sessions/${sessionId}`, { method: 'PATCH', body: JSON.stringify({ is_pinned: pinned }) })
 }

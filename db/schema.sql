@@ -12,6 +12,8 @@ alter table users add column if not exists name text;
 alter table users add column if not exists date_of_birth date;
 alter table users add column if not exists phone text;
 alter table users add column if not exists address text;
+alter table users add column if not exists nickname text;
+alter table users add column if not exists custom_instructions text;
 
 create table if not exists chat_sessions (
   id uuid primary key default gen_random_uuid(),

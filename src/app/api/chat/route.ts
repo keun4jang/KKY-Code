@@ -1,6 +1,7 @@
 import { getSession } from '@/lib/auth/session'
 import { apiHandler } from '@/lib/apiHandler'
 import { logToGoogleSheets } from '@/lib/googleSheets'
+import { sql } from '@/lib/db'
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 const MODEL = 'gemini-2.5-flash'
@@ -40,10 +41,19 @@ export const POST = apiHandler(async (req: Request) => {
     parts: [{ text: m.content }],
   }))
 
+  const db = sql()
+  const [profile] = await db`select nickname, custom_instructions from users where id = ${session.userId}`
+
   let systemText =
     'You are a helpful assistant. Always answer in Korean. When the user asks about real-time information such as weather, news, prices, or sports results, use the google_search tool to find the actual current information and answer directly and concretely. Do not say you cannot access real-time data; use search instead.'
   if (location && location.lat && location.lng) {
     systemText += ` The user's approximate current location is latitude ${location.lat}, longitude ${location.lng}. Use this for location-based questions such as nearby weather or places.`
+  }
+  if (profile?.nickname) {
+    systemText += ` Address the user as "${profile.nickname}" when appropriate.`
+  }
+  if (profile?.custom_instructions) {
+    systemText += ` Additional instructions from the user, follow these unless they conflict with safety: ${profile.custom_instructions}`
   }
 
   const geminiRes = await fetchGeminiWithRetry(
