@@ -1,6 +1,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 :root {
   --background: #ffffff;
