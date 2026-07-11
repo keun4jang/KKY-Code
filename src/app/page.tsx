@@ -16,6 +16,7 @@ import {
 import { streamAssistantReply } from '@/lib/gemini'
 import { useGeoLocation } from '@/lib/useGeoLocation'
 import { MarkdownMessage } from '@/components/MarkdownMessage'
+import pkg from '../../package.json'
 
 type ChatSession = { id: string; title: string; is_pinned: boolean }
 type ChatMessage = { id: string; role: string; content: string }
@@ -250,6 +251,7 @@ export default function Home() {
           >
             ⚙️ 설정
           </button>
+          <p className="text-gray-400 dark:text-gray-600">v{pkg.version}</p>
         </div>
       </aside>
 
