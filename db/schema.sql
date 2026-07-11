@@ -35,3 +35,13 @@ create table if not exists chat_messages (
 create index if not exists idx_chat_sessions_user_id on chat_sessions(user_id);
 create index if not exists idx_chat_messages_session_id on chat_messages(session_id);
 create index if not exists idx_chat_messages_created_at on chat_messages(created_at);
+
+create table if not exists feedback (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  email text not null,
+  message text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_feedback_created_at on feedback(created_at desc);

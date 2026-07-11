@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useTheme } from "@/lib/useTheme"
 import { getProfile, updateProfile } from "@/lib/profile"
 import { deleteAllSessions } from "@/lib/chat"
+import { submitFeedback, getAllFeedback, type Feedback } from "@/lib/feedback"
 import pkg from "../../package.json"
 
 const THEME_OPTIONS = [
@@ -13,13 +14,15 @@ const THEME_OPTIONS = [
   { value: "system", label: "💻 시스템" },
 ] as const
 
-const TABS = [
+const BASE_TABS = [
   { value: "general", label: "일반" },
   { value: "account", label: "계정" },
   { value: "about", label: "정보" },
 ] as const
 
-type Tab = (typeof TABS)[number]["value"]
+const ADMIN_TAB = { value: "feedback", label: "피드백" } as const
+
+type Tab = (typeof BASE_TABS)[number]["value"] | typeof ADMIN_TAB["value"]
 
 export function SettingsModal({
   email,
@@ -34,6 +37,7 @@ export function SettingsModal({
 }) {
   const { theme, setTheme } = useTheme()
   const [tab, setTab] = useState<Tab>("general")
+  const tabs = isAdmin ? [...BASE_TABS, ADMIN_TAB] : BASE_TABS
 
   const [nickname, setNickname] = useState("")
   const [customInstructions, setCustomInstructions] = useState("")
@@ -41,10 +45,14 @@ export function SettingsModal({
   const [phone, setPhone] = useState("")
   const [dateOfBirth, setDateOfBirth] = useState("")
   const [address, setAddress] = useState("")
+  const [feedbackText, setFeedbackText] = useState("")
+  const [feedbackList, setFeedbackList] = useState<Feedback[]>([])
+  const [feedbackLoading, setFeedbackLoading] = useState(false)
 
   const [loading, setLoading] = useState(true)
   const [savingGeneral, setSavingGeneral] = useState(false)
   const [savingAccount, setSavingAccount] = useState(false)
+  const [sendingFeedback, setSendingFeedback] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
   useEffect(() => {
@@ -97,6 +105,30 @@ export function SettingsModal({
     }
   }
 
+  async function handleSendFeedback() {
+    if (!feedbackText.trim()) return
+    setSendingFeedback(true)
+    setMessage(null)
+    try {
+      await submitFeedback(feedbackText.trim())
+      setFeedbackText("")
+      setMessage("피드백이 전송되었습니다. 감사합니다!")
+    } catch (e) {
+      setMessage(String(e))
+    } finally {
+      setSendingFeedback(false)
+    }
+  }
+
+  useEffect(() => {
+    if (tab !== "feedback" || !isAdmin) return
+    setFeedbackLoading(true)
+    getAllFeedback()
+      .then(setFeedbackList)
+      .catch((e) => setMessage(String(e)))
+      .finally(() => setFeedbackLoading(false))
+  }, [tab, isAdmin])
+
   return (
     <div
       className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4"
@@ -118,7 +150,7 @@ export function SettingsModal({
         </div>
 
         <div className="flex border-b dark:border-gray-700 text-sm">
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <button
               key={t.value}
               onClick={() => setTab(t.value)}
@@ -258,13 +290,53 @@ export function SettingsModal({
               )}
 
               {tab === "about" && (
-                <section>
-                  <p className="text-xs text-gray-400">
-                    버전 v{pkg.version} ({process.env.NEXT_PUBLIC_GIT_SHA})
-                  </p>
-                  <p className="text-xs text-green-600 dark:text-green-400 font-semibold mt-2">
-                    🎉 이 앱은 완전 무료로 이용하실 수 있습니다
-                  </p>
+                <>
+                  <section>
+                    <p className="text-xs text-gray-400">
+                      버전 v{pkg.version} ({process.env.NEXT_PUBLIC_GIT_SHA})
+                    </p>
+                    <p className="text-xs text-green-600 dark:text-green-400 font-semibold mt-2">
+                      🎉 이 앱은 완전 무료로 이용하실 수 있습니다
+                    </p>
+                  </section>
+
+                  <section className="border-t dark:border-gray-700 pt-4">
+                    <h3 className="text-xs font-semibold text-gray-500 mb-2">개발자에게 피드백 보내기</h3>
+                    <textarea
+                      value={feedbackText}
+                      onChange={(e) => setFeedbackText(e.target.value)}
+                      placeholder="불편한 점이나 원하는 기능을 자유롭게 남겨주세요."
+                      rows={4}
+                      className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-transparent text-sm resize-none"
+                    />
+                    <button
+                      onClick={handleSendFeedback}
+                      disabled={sendingFeedback || !feedbackText.trim()}
+                      className="mt-2 w-full bg-black dark:bg-white text-white dark:text-black rounded px-3 py-2 text-sm disabled:opacity-50"
+                    >
+                      {sendingFeedback ? "전송 중..." : "피드백 보내기"}
+                    </button>
+                  </section>
+                </>
+              )}
+
+              {tab === "feedback" && isAdmin && (
+                <section className="space-y-3">
+                  <h3 className="text-xs font-semibold text-gray-500">받은 피드백</h3>
+                  {feedbackLoading ? (
+                    <p className="text-sm text-gray-500">불러오는 중...</p>
+                  ) : feedbackList.length === 0 ? (
+                    <p className="text-sm text-gray-500">아직 받은 피드백이 없습니다.</p>
+                  ) : (
+                    feedbackList.map((f) => (
+                      <div key={f.id} className="border dark:border-gray-700 rounded p-3 text-sm">
+                        <p className="whitespace-pre-wrap">{f.message}</p>
+                        <p className="text-xs text-gray-500 mt-2">
+                          {f.email} · {new Date(f.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                    ))
+                  )}
                 </section>
               )}
 
