@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import { sql } from '@/lib/db'
 import { getSession } from '@/lib/auth/session'
+import { apiHandler } from '@/lib/apiHandler'
 
-export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export const PATCH = apiHandler(async (req: Request, { params }: { params: Promise<{ id: string }> }) => {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
 
@@ -25,9 +26,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 
   return NextResponse.json({ ok: true })
-}
+})
 
-export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export const DELETE = apiHandler(async (_req: Request, { params }: { params: Promise<{ id: string }> }) => {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
 
@@ -36,4 +37,4 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   await db`delete from chat_sessions where id = ${id} and user_id = ${session.userId}`
 
   return NextResponse.json({ ok: true })
-}
+})

@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import { sql } from '@/lib/db'
 import { getSession } from '@/lib/auth/session'
+import { apiHandler } from '@/lib/apiHandler'
 
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export const GET = apiHandler(async (_req: Request, { params }: { params: Promise<{ id: string }> }) => {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
 
@@ -19,9 +20,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     order by created_at asc
   `
   return NextResponse.json(rows)
-}
+})
 
-export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export const POST = apiHandler(async (req: Request, { params }: { params: Promise<{ id: string }> }) => {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
 
@@ -42,4 +43,4 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     returning id, role, content
   `
   return NextResponse.json(row)
-}
+})

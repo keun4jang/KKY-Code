@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server'
 import { sql } from '@/lib/db'
 import { verifyPassword } from '@/lib/auth/password'
 import { createSessionCookie } from '@/lib/auth/session'
+import { apiHandler } from '@/lib/apiHandler'
 
-export async function POST(req: Request) {
+export const POST = apiHandler(async (req: Request) => {
   const { email, password } = await req.json()
 
   if (typeof email !== 'string' || typeof password !== 'string') {
@@ -21,4 +22,4 @@ export async function POST(req: Request) {
   await createSessionCookie({ userId: user.id, email: user.email, isAdmin: user.is_admin })
 
   return NextResponse.json({ userId: user.id, email: user.email, isAdmin: user.is_admin })
-}
+})

@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import { sql } from '@/lib/db'
 import { getSession } from '@/lib/auth/session'
+import { apiHandler } from '@/lib/apiHandler'
 
-export async function GET() {
+export const GET = apiHandler(async () => {
   const session = await getSession()
   if (!session?.isAdmin) return NextResponse.json({ error: '관리자 권한이 없습니다.' }, { status: 403 })
 
@@ -13,4 +14,4 @@ export async function GET() {
     order by created_at desc
   `
   return NextResponse.json(rows)
-}
+})

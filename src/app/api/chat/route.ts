@@ -1,4 +1,5 @@
 import { getSession } from '@/lib/auth/session'
+import { apiHandler } from '@/lib/apiHandler'
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 const SHEETS_WEBHOOK_URL = process.env.GOOGLE_SHEETS_WEBHOOK_URL
@@ -37,7 +38,7 @@ async function logToGoogleSheets(payload: Record<string, unknown>) {
   }
 }
 
-export async function POST(req: Request) {
+export const POST = apiHandler(async (req: Request) => {
   const session = await getSession()
   if (!session) {
     return new Response(JSON.stringify({ error: '로그인이 필요합니다.' }), { status: 401 })
@@ -132,4 +133,4 @@ export async function POST(req: Request) {
       Connection: 'keep-alive',
     },
   })
-}
+})
