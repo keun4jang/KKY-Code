@@ -1,16 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import { createClient } from "@/lib/supabase/client"
 
-export function AuthForm() {
+export function AuthForm({ onAuthenticated }: { onAuthenticated?: () => void }) {
   const [mode, setMode] = useState<"login" | "signup">("login")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [message, setMessage] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-
-  const supabase = createClient()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -18,14 +15,15 @@ export function AuthForm() {
     setLoading(true)
 
     try {
-      if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({ email, password })
-        if (error) throw error
-        setMessage("회원가입이 완료되었습니다. 자동으로 로그인됩니다.")
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password })
-        if (error) throw error
-      }
+      const res = await fetch(`/api/auth/${mode === "signup" ? "signup" : "login"}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "요청이 실패했습니다.")
+
+      onAuthenticated?.()
     } catch (err) {
       setMessage(String((err as Error).message ?? err))
     } finally {

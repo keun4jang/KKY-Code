@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { createClient } from "@/lib/supabase/client"
 
 type SessionState = {
   userId: string | null
@@ -22,64 +21,32 @@ export function useEnsureSession() {
     needsAuth: false,
   })
 
-  useEffect(() => {
-    const supabase = createClient()
-
-    async function loadAdminFlag(userId: string): Promise<boolean> {
-      const { data } = await supabase
-        .from("profiles")
-        .select("is_admin")
-        .eq("id", userId)
-        .single()
-      return data?.is_admin ?? false
-    }
-
-    async function check() {
-      try {
-        const { data, error } = await supabase.auth.getSession()
-        if (error) throw error
-
-        if (data.session) {
-          const isAdmin = await loadAdminFlag(data.session.user.id)
-          setState({
-            userId: data.session.user.id,
-            email: data.session.user.email ?? null,
-            isAdmin,
-            loading: false,
-            errorMsg: null,
-            needsAuth: false,
-          })
-        } else {
-          setState({ userId: null, email: null, isAdmin: false, loading: false, errorMsg: null, needsAuth: true })
-        }
-      } catch (e) {
-        setState({ userId: null, email: null, isAdmin: false, loading: false, errorMsg: String(e), needsAuth: true })
-      }
-    }
-
-    check()
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        loadAdminFlag(session.user.id).then((isAdmin) => {
-          setState({
-            userId: session.user.id,
-            email: session.user.email ?? null,
-            isAdmin,
-            loading: false,
-            errorMsg: null,
-            needsAuth: false,
-          })
-        })
-      } else {
+  async function refresh() {
+    try {
+      const res = await fetch("/api/auth/session")
+      if (res.status === 401) {
         setState({ userId: null, email: null, isAdmin: false, loading: false, errorMsg: null, needsAuth: true })
+        return
       }
-    })
+      if (!res.ok) throw new Error(`세션 확인 실패 (${res.status})`)
 
-    return () => {
-      listener.subscription.unsubscribe()
+      const { session } = await res.json()
+      setState({
+        userId: session.userId,
+        email: session.email,
+        isAdmin: session.isAdmin,
+        loading: false,
+        errorMsg: null,
+        needsAuth: false,
+      })
+    } catch (e) {
+      setState({ userId: null, email: null, isAdmin: false, loading: false, errorMsg: String(e), needsAuth: true })
     }
+  }
+
+  useEffect(() => {
+    refresh()
   }, [])
 
-  return state
+  return { ...state, refresh }
 }

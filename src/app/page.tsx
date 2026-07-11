@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useRef, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { useEnsureSession } from '@/lib/useEnsureSession'
 import Link from 'next/link'
 import { AuthForm } from '@/components/AuthForm'
@@ -22,7 +21,7 @@ type ChatSession = { id: string; title: string; is_pinned: boolean }
 type ChatMessage = { id: string; role: string; content: string }
 
 export default function Home() {
-  const { userId, email, isAdmin, loading, errorMsg, needsAuth } = useEnsureSession()
+  const { email, isAdmin, loading, errorMsg, needsAuth, refresh } = useEnsureSession()
   const location = useGeoLocation()
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
@@ -37,7 +36,6 @@ export default function Home() {
 
   const abortRef = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
-  const supabase = createClient()
 
   useEffect(() => {
     const saved = localStorage.getItem('theme')
@@ -55,20 +53,21 @@ export default function Home() {
   }
 
   async function handleLogout() {
-    await supabase.auth.signOut()
+    await fetch('/api/auth/logout', { method: 'POST' })
     setSessions([])
     setActiveSessionId(null)
     setMessages([])
+    refresh()
   }
 
   useEffect(() => {
-    if (!userId) return
-    getChatSessions(supabase).then(setSessions).catch((e) => setFetchError(String(e)))
-  }, [userId])
+    if (needsAuth || loading) return
+    getChatSessions().then(setSessions).catch((e) => setFetchError(String(e)))
+  }, [needsAuth, loading])
 
   useEffect(() => {
     if (!activeSessionId) return
-    getMessages(supabase, activeSessionId).then(setMessages).catch((e) => setFetchError(String(e)))
+    getMessages(activeSessionId).then(setMessages).catch((e) => setFetchError(String(e)))
   }, [activeSessionId])
 
   useEffect(() => {
@@ -76,7 +75,7 @@ export default function Home() {
   }, [messages, streamingText])
 
   async function handleNewSession() {
-    const session = await createChatSession(supabase, '새 채팅')
+    const session = await createChatSession('새 채팅')
     setSessions((prev) => [session, ...prev])
     setActiveSessionId(session.id)
     setMessages([])
@@ -85,13 +84,13 @@ export default function Home() {
   async function handleRename(sessionId: string) {
     const newTitle = window.prompt('새 채팅 이름을 입력하세요')
     if (!newTitle) return
-    await updateSessionTitle(supabase, sessionId, newTitle)
+    await updateSessionTitle(sessionId, newTitle)
     setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, title: newTitle } : s)))
   }
 
   async function handleDelete(sessionId: string) {
     if (!window.confirm('이 채팅을 삭제하시겠습니까?')) return
-    await deleteSession(supabase, sessionId)
+    await deleteSession(sessionId)
     setSessions((prev) => prev.filter((s) => s.id !== sessionId))
     if (activeSessionId === sessionId) {
       setActiveSessionId(null)
@@ -101,7 +100,7 @@ export default function Home() {
 
   async function handleTogglePin(session: ChatSession) {
     const next = !session.is_pinned
-    await togglePinSession(supabase, session.id, next)
+    await togglePinSession(session.id, next)
     setSessions((prev) =>
       [...prev.map((s) => (s.id === session.id ? { ...s, is_pinned: next } : s))].sort(
         (a, b) => Number(b.is_pinned) - Number(a.is_pinned)
@@ -118,20 +117,18 @@ export default function Home() {
 
     try {
       const finalText = await streamAssistantReply(
-        supabase,
         historyForModel,
         (textSoFar) => setStreamingText(textSoFar),
         controller.signal,
-        userId,
         location
       )
-      const assistantMsg = await sendMessage(supabase, activeSessionId, 'assistant', finalText)
+      const assistantMsg = await sendMessage(activeSessionId, 'assistant', finalText)
       setMessages((prev) => [...prev, assistantMsg])
 
       const currentSession = sessions.find((s) => s.id === activeSessionId)
       if (currentSession && (currentSession.title === '새 채팅' || currentSession.title === 'New Chat')) {
         const autoTitle = historyForModel[0]?.content.slice(0, 30) || '새 채팅'
-        await updateSessionTitle(supabase, activeSessionId, autoTitle)
+        await updateSessionTitle(activeSessionId, autoTitle)
         setSessions((prev) =>
           prev.map((s) => (s.id === activeSessionId ? { ...s, title: autoTitle } : s))
         )
@@ -154,7 +151,7 @@ export default function Home() {
     setInput('')
     setLastUserText(text)
 
-    const userMsg = await sendMessage(supabase, activeSessionId, 'user', text)
+    const userMsg = await sendMessage(activeSessionId, 'user', text)
     const newMessages = [...messages, userMsg]
     setMessages(newMessages)
 
@@ -182,7 +179,7 @@ export default function Home() {
 
   if (loading) return <div className="p-6">로그인 처리 중...</div>
 
-  if (needsAuth) return <AuthForm />
+  if (needsAuth) return <AuthForm onAuthenticated={refresh} />
 
   if (errorMsg) {
     return (

@@ -2,24 +2,21 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { createClient } from "@/lib/supabase/client"
 import { useEnsureSession } from "@/lib/useEnsureSession"
-import { getAllProfiles, getSessionsByUser, getMessagesBySession, type AdminProfile, type AdminSession, type AdminMessage } from "@/lib/admin"
+import { getAllUsers, getSessionsByUser, getMessagesBySession, type AdminUser, type AdminSession, type AdminMessage } from "@/lib/admin"
 
 export default function AdminPage() {
   const { isAdmin, loading, needsAuth } = useEnsureSession()
-  const [profiles, setProfiles] = useState<AdminProfile[]>([])
+  const [users, setUsers] = useState<AdminUser[]>([])
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [sessions, setSessions] = useState<AdminSession[]>([])
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
   const [messages, setMessages] = useState<AdminMessage[]>([])
   const [error, setError] = useState<string | null>(null)
 
-  const supabase = createClient()
-
   useEffect(() => {
     if (!isAdmin) return
-    getAllProfiles(supabase).then(setProfiles).catch((e) => setError(String(e)))
+    getAllUsers().then(setUsers).catch((e) => setError(String(e)))
   }, [isAdmin])
 
   useEffect(() => {
@@ -27,13 +24,13 @@ export default function AdminPage() {
     setSessions([])
     setSelectedSessionId(null)
     setMessages([])
-    getSessionsByUser(supabase, selectedUserId).then(setSessions).catch((e) => setError(String(e)))
+    getSessionsByUser(selectedUserId).then(setSessions).catch((e) => setError(String(e)))
   }, [selectedUserId])
 
   useEffect(() => {
     if (!selectedSessionId) return
     setMessages([])
-    getMessagesBySession(supabase, selectedSessionId).then(setMessages).catch((e) => setError(String(e)))
+    getMessagesBySession(selectedSessionId).then(setMessages).catch((e) => setError(String(e)))
   }, [selectedSessionId])
 
   if (loading) return <div className="p-6">로딩 중...</div>
@@ -49,16 +46,16 @@ export default function AdminPage() {
         </div>
         {error && <p className="text-red-600 text-xs mb-2 whitespace-pre-wrap">{error}</p>}
         <ul className="space-y-1">
-          {profiles.map((p) => (
-            <li key={p.id}>
+          {users.map((u) => (
+            <li key={u.id}>
               <button
-                onClick={() => setSelectedUserId(p.id)}
+                onClick={() => setSelectedUserId(u.id)}
                 className={`w-full text-left px-2 py-1 rounded text-sm truncate ${
-                  selectedUserId === p.id ? "bg-gray-200 dark:bg-gray-700" : ""
+                  selectedUserId === u.id ? "bg-gray-200 dark:bg-gray-700" : ""
                 }`}
               >
-                {p.is_admin ? "👑 " : ""}
-                {p.display_name || p.id}
+                {u.is_admin ? "👑 " : ""}
+                {u.email}
               </button>
             </li>
           ))}
