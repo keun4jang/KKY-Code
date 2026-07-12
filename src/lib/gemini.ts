@@ -6,7 +6,8 @@ export async function streamAssistantReply(
   history: HistoryItem[],
   onDelta: (textSoFar: string) => void,
   signal: AbortSignal,
-  location?: GeoLocation
+  location?: GeoLocation,
+  onStatus?: (status: string) => void
 ): Promise<string> {
   const res = await fetch('/api/chat', {
     method: 'POST',
@@ -36,14 +37,19 @@ export async function streamAssistantReply(
       if (!line.startsWith('data: ')) continue
       const payload = line.slice(6).trim()
       if (payload === '[DONE]') continue
+
+      let parsed: { error?: string; status?: string; text?: string }
       try {
-        const parsed = JSON.parse(payload)
-        if (parsed.text) {
-          fullText += parsed.text
-          onDelta(fullText)
-        }
+        parsed = JSON.parse(payload)
       } catch {
-        // ignore
+        continue // ignore partial json chunks
+      }
+
+      if (parsed.error) throw new Error(parsed.error)
+      if (parsed.status) onStatus?.(parsed.status)
+      if (parsed.text) {
+        fullText += parsed.text
+        onDelta(fullText)
       }
     }
   }

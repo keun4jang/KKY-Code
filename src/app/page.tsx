@@ -37,6 +37,7 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [usage, setUsage] = useState<Usage | null>(null)
+  const [statusText, setStatusText] = useState('')
 
   const abortRef = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -109,6 +110,7 @@ export default function Home() {
     if (!activeSessionId) return
     setSending(true)
     setStreamingText('')
+    setStatusText('')
     const controller = new AbortController()
     abortRef.current = controller
 
@@ -117,7 +119,8 @@ export default function Home() {
         historyForModel,
         (textSoFar) => setStreamingText(textSoFar),
         controller.signal,
-        location
+        location,
+        (status) => setStatusText(status)
       )
       const assistantMsg = await sendMessage(activeSessionId, 'assistant', finalText)
       setMessages((prev) => [...prev, assistantMsg])
@@ -341,7 +344,13 @@ export default function Home() {
           {sending && (
             <div className="text-left">
               <div className="inline-block rounded px-3 py-2 max-w-[80%] bg-gray-100 dark:bg-gray-800">
-                <MarkdownMessage content={streamingText || '생각 중...'} />
+                {streamingText ? (
+                  <MarkdownMessage content={streamingText} />
+                ) : (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 italic">
+                    {statusText || '생각 중...'}
+                  </p>
+                )}
               </div>
             </div>
           )}
