@@ -7,7 +7,6 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 const GROQ_API_KEY = process.env.GROQ_API_KEY
 const MODEL = 'gemini-2.5-flash'
 const GROQ_MODEL = 'llama-3.3-70b-versatile'
-const IMAGE_MODEL = 'gemini-2.5-flash-image'
 
 const MAX_ATTACHMENT_BASE64_CHARS = 4_000_000 // ~2.9MB raw, keeps request under Vercel's 4.5MB body limit
 const ALLOWED_ATTACHMENT_MIME_TYPES = new Set([
@@ -23,22 +22,6 @@ const ALLOWED_ATTACHMENT_MIME_TYPES = new Set([
 ])
 
 type Attachment = { name: string; mimeType: string; data: string }
-
-const IMAGE_INTENT_PATTERNS = [
-  /그려\s*줘/,
-  /그려\s*줄래/,
-  /그림.{0,10}(그려|만들|생성)/,
-  /이미지.{0,10}(만들|생성|그려)/,
-  /사진.{0,10}(만들|생성)/,
-  /(그림|이미지|사진).{0,5}(그려|생성해|만들어)/,
-  /draw\s+(a|an|me)\b/i,
-  /generate\s+(an?\s+)?image/i,
-  /create\s+(an?\s+)?image/i,
-]
-
-function detectImageIntent(text: string): boolean {
-  return IMAGE_INTENT_PATTERNS.some((p) => p.test(text))
-}
 
 async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3): Promise<Response> {
   let lastRes: Response | null = null
@@ -153,42 +136,6 @@ async function streamGeminiText(
   return fullText
 }
 
-async function generateImage(
-  promptText: string,
-  attachment?: Attachment | null
-): Promise<{ text: string; imageDataUrl: string | null }> {
-  const parts: Record<string, unknown>[] = [{ text: promptText }]
-  if (attachment) {
-    parts.push({ inlineData: { mimeType: attachment.mimeType, data: attachment.data } })
-  }
-
-  const res = await fetchWithRetry(
-    `https://generativelanguage.googleapis.com/v1beta/models/${IMAGE_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ role: 'user', parts }] }),
-    }
-  )
-  if (!res.ok) throw new Error(await res.text())
-  const data = await res.json()
-  const resultParts: Record<string, unknown>[] = data.candidates?.[0]?.content?.parts ?? []
-
-  let text = ''
-  let imageDataUrl: string | null = null
-  for (const part of resultParts) {
-    if (typeof part.text === 'string') text += part.text
-    const inline = (part.inlineData ?? part.inline_data) as
-      | { data?: string; mimeType?: string; mime_type?: string }
-      | undefined
-    if (inline?.data) {
-      const mime = inline.mimeType ?? inline.mime_type ?? 'image/png'
-      imageDataUrl = `data:${mime};base64,${inline.data}`
-    }
-  }
-  return { text, imageDataUrl }
-}
-
 export const POST = apiHandler(async (req: Request) => {
   const session = await getSession()
   if (!session) {
@@ -251,8 +198,6 @@ export const POST = apiHandler(async (req: Request) => {
   const lastUserMessage =
     [...messages].reverse().find((m) => m.role === 'user')?.content ?? ''
 
-  const wantsImage = detectImageIntent(lastUserMessage)
-
   const stream = new ReadableStream({
     async start(controller) {
       const send = (payload: Record<string, unknown>) =>
@@ -263,42 +208,6 @@ export const POST = apiHandler(async (req: Request) => {
       }
 
       try {
-        if (wantsImage) {
-          send({ status: '이미지 생성 중...' })
-
-          try {
-            const { text, imageDataUrl } = await generateImage(lastUserMessage, attachment)
-            if (!imageDataUrl) {
-              send({ error: '이미지를 생성하지 못했습니다. 다른 표현으로 다시 시도해주세요.' })
-              controller.close()
-              return
-            }
-
-            const markdown = `${text ? text.trim() + '\n\n' : ''}![생성된 이미지](${imageDataUrl})`
-            send({ text: markdown })
-            send({ done: true })
-            finish()
-
-            logToGoogleSheets({
-              type: 'image',
-              userId: session.userId,
-              email: session.email,
-              question: lastUserMessage,
-              answer: '(생성된 이미지)',
-              location: location ?? null,
-              timestamp: new Date().toISOString(),
-            })
-          } catch (e) {
-            console.error('Image generation failed:', e)
-            send({
-              error:
-                '죄송합니다, 현재 이미지 생성 기능을 사용할 수 없습니다 (사용량 한도 초과). 잠시 후 다시 시도해주세요.',
-            })
-            controller.close()
-          }
-          return
-        }
-
         if (attachment) {
           send({ status: '파일 분석 중...' })
 

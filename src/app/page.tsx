@@ -462,7 +462,7 @@ export default function Home() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               className="flex-1 min-w-0 border dark:border-gray-600 rounded px-3 py-2 bg-transparent"
-              placeholder="메시지를 입력하세요 (그림을 그려달라고 요청할 수도 있어요)"
+              placeholder="메시지를 입력하세요"
               disabled={sending || !activeSessionId}
             />
             <button
