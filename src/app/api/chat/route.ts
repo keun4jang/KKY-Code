@@ -7,6 +7,38 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 const GROQ_API_KEY = process.env.GROQ_API_KEY
 const MODEL = 'gemini-2.5-flash'
 const GROQ_MODEL = 'llama-3.3-70b-versatile'
+const IMAGE_MODEL = 'gemini-2.5-flash-image'
+
+const MAX_ATTACHMENT_BASE64_CHARS = 4_000_000 // ~2.9MB raw, keeps request under Vercel's 4.5MB body limit
+const ALLOWED_ATTACHMENT_MIME_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+  'application/pdf',
+  'text/plain',
+  'text/csv',
+  'text/markdown',
+])
+
+type Attachment = { name: string; mimeType: string; data: string }
+
+const IMAGE_INTENT_PATTERNS = [
+  /그려\s*줘/,
+  /그려\s*줄래/,
+  /그림.{0,10}(그려|만들|생성)/,
+  /이미지.{0,10}(만들|생성|그려)/,
+  /사진.{0,10}(만들|생성)/,
+  /(그림|이미지|사진).{0,5}(그려|생성해|만들어)/,
+  /draw\s+(a|an|me)\b/i,
+  /generate\s+(an?\s+)?image/i,
+  /create\s+(an?\s+)?image/i,
+]
+
+function detectImageIntent(text: string): boolean {
+  return IMAGE_INTENT_PATTERNS.some((p) => p.test(text))
+}
 
 async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3): Promise<Response> {
   let lastRes: Response | null = null
@@ -121,6 +153,42 @@ async function streamGeminiText(
   return fullText
 }
 
+async function generateImage(
+  promptText: string,
+  attachment?: Attachment | null
+): Promise<{ text: string; imageDataUrl: string | null }> {
+  const parts: Record<string, unknown>[] = [{ text: promptText }]
+  if (attachment) {
+    parts.push({ inlineData: { mimeType: attachment.mimeType, data: attachment.data } })
+  }
+
+  const res = await fetchWithRetry(
+    `https://generativelanguage.googleapis.com/v1beta/models/${IMAGE_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ role: 'user', parts }] }),
+    }
+  )
+  if (!res.ok) throw new Error(await res.text())
+  const data = await res.json()
+  const resultParts: Record<string, unknown>[] = data.candidates?.[0]?.content?.parts ?? []
+
+  let text = ''
+  let imageDataUrl: string | null = null
+  for (const part of resultParts) {
+    if (typeof part.text === 'string') text += part.text
+    const inline = (part.inlineData ?? part.inline_data) as
+      | { data?: string; mimeType?: string; mime_type?: string }
+      | undefined
+    if (inline?.data) {
+      const mime = inline.mimeType ?? inline.mime_type ?? 'image/png'
+      imageDataUrl = `data:${mime};base64,${inline.data}`
+    }
+  }
+  return { text, imageDataUrl }
+}
+
 export const POST = apiHandler(async (req: Request) => {
   const session = await getSession()
   if (!session) {
@@ -131,12 +199,36 @@ export const POST = apiHandler(async (req: Request) => {
     return new Response(JSON.stringify({ error: 'GEMINI_API_KEY is not set' }), { status: 500 })
   }
 
-  const { messages, location } = await req.json()
+  const { messages, location, attachment } = (await req.json()) as {
+    messages: { role: string; content: string }[]
+    location?: { lat: number; lng: number } | null
+    attachment?: Attachment | null
+  }
 
-  const contents = messages.map((m: { role: string; content: string }) => ({
-    role: m.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: m.content }],
-  }))
+  if (attachment) {
+    if (!ALLOWED_ATTACHMENT_MIME_TYPES.has(attachment.mimeType)) {
+      return new Response(
+        JSON.stringify({ error: '지원하지 않는 파일 형식입니다. (이미지, PDF, 텍스트 파일만 가능)' }),
+        { status: 400 }
+      )
+    }
+    if (attachment.data.length > MAX_ATTACHMENT_BASE64_CHARS) {
+      return new Response(JSON.stringify({ error: '파일 크기는 3MB 이하만 지원합니다.' }), {
+        status: 400,
+      })
+    }
+  }
+
+  const contents = messages.map((m, idx) => {
+    const parts: Record<string, unknown>[] = [{ text: m.content }]
+    if (attachment && idx === messages.length - 1 && m.role === 'user') {
+      parts.push({ inlineData: { mimeType: attachment.mimeType, data: attachment.data } })
+    }
+    return {
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts,
+    }
+  })
 
   const db = sql()
   const [profile] = await db`select nickname, custom_instructions from users where id = ${session.userId}`
@@ -152,16 +244,72 @@ export const POST = apiHandler(async (req: Request) => {
   if (profile?.custom_instructions) {
     systemText += ` Additional instructions from the user, follow these unless they conflict with safety: ${profile.custom_instructions}`
   }
+  if (attachment) {
+    systemText += ' The user has attached a file. Carefully read its contents and use them to answer.'
+  }
 
   const lastUserMessage =
-    [...messages].reverse().find((m: { role: string }) => m.role === 'user')?.content ?? ''
+    [...messages].reverse().find((m) => m.role === 'user')?.content ?? ''
+
+  const wantsImage = detectImageIntent(lastUserMessage)
 
   const stream = new ReadableStream({
     async start(controller) {
       const send = (payload: Record<string, unknown>) =>
         controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(payload)}\n\n`))
+      const finish = () => {
+        controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'))
+        controller.close()
+      }
 
       try {
+        if (wantsImage) {
+          send({ status: '이미지 생성 중...' })
+
+          const { text, imageDataUrl } = await generateImage(lastUserMessage, attachment)
+          if (!imageDataUrl) {
+            send({ error: '이미지를 생성하지 못했습니다. 다른 표현으로 다시 시도해주세요.' })
+            controller.close()
+            return
+          }
+
+          const markdown = `${text ? text.trim() + '\n\n' : ''}![생성된 이미지](${imageDataUrl})`
+          send({ text: markdown })
+          send({ done: true })
+          finish()
+
+          logToGoogleSheets({
+            type: 'image',
+            userId: session.userId,
+            email: session.email,
+            question: lastUserMessage,
+            answer: '(생성된 이미지)',
+            location: location ?? null,
+            timestamp: new Date().toISOString(),
+          })
+          return
+        }
+
+        if (attachment) {
+          send({ status: '파일 분석 중...' })
+
+          const fullAnswer = await streamGeminiText(contents, systemText, (text) => send({ text }))
+
+          send({ done: true })
+          finish()
+
+          logToGoogleSheets({
+            type: 'chat',
+            userId: session.userId,
+            email: session.email,
+            question: lastUserMessage,
+            answer: fullAnswer,
+            location: location ?? null,
+            timestamp: new Date().toISOString(),
+          })
+          return
+        }
+
         send({ status: 'AI 답변 수집 중...' })
 
         const [geminiAnswer, groqAnswer] = await Promise.all([
@@ -190,8 +338,7 @@ ${groqAnswer ?? '(응답 없음)'}
         )
 
         send({ done: true })
-        controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'))
-        controller.close()
+        finish()
 
         logToGoogleSheets({
           type: 'chat',

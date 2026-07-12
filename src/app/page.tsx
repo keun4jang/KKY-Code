@@ -13,7 +13,7 @@ import {
   deleteSession,
   togglePinSession,
 } from '@/lib/chat'
-import { streamAssistantReply } from '@/lib/gemini'
+import { streamAssistantReply, type Attachment } from '@/lib/gemini'
 import { useGeoLocation } from '@/lib/useGeoLocation'
 import { MarkdownMessage } from '@/components/MarkdownMessage'
 import { getUsage, type Usage } from '@/lib/usage'
@@ -21,6 +21,19 @@ import pkg from '../../package.json'
 
 type ChatSession = { id: string; title: string; is_pinned: boolean }
 type ChatMessage = { id: string; role: string; content: string }
+
+const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024
+const ALLOWED_ATTACHMENT_TYPES = [
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+  'application/pdf',
+  'text/plain',
+  'text/csv',
+  'text/markdown',
+]
 
 export default function Home() {
   const { email, isAdmin, loading, errorMsg, needsAuth, refresh } = useEnsureSession()
@@ -38,9 +51,42 @@ export default function Home() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [usage, setUsage] = useState<Usage | null>(null)
   const [statusText, setStatusText] = useState('')
+  const [attachment, setAttachment] = useState<Attachment | null>(null)
+  const [attachError, setAttachError] = useState<string | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setAttachError(null)
+
+    if (!ALLOWED_ATTACHMENT_TYPES.includes(file.type)) {
+      setAttachError('이미지, PDF, 텍스트 파일만 첨부할 수 있습니다.')
+      return
+    }
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      setAttachError('파일 크기는 3MB 이하만 지원합니다.')
+      return
+    }
+
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = () => reject(reader.error)
+      reader.readAsDataURL(file)
+    })
+    const base64 = dataUrl.split(',')[1] ?? ''
+    setAttachment({ name: file.name, mimeType: file.type, data: base64 })
+  }
+
+  function clearAttachment() {
+    setAttachment(null)
+    setAttachError(null)
+  }
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -106,7 +152,10 @@ export default function Home() {
     )
   }
 
-  async function runAssistant(historyForModel: { role: 'user' | 'assistant'; content: string }[]) {
+  async function runAssistant(
+    historyForModel: { role: 'user' | 'assistant'; content: string }[],
+    attachmentForThisTurn?: Attachment | null
+  ) {
     if (!activeSessionId) return
     setSending(true)
     setStreamingText('')
@@ -120,7 +169,8 @@ export default function Home() {
         (textSoFar) => setStreamingText(textSoFar),
         controller.signal,
         location,
-        (status) => setStatusText(status)
+        (status) => setStatusText(status),
+        attachmentForThisTurn
       )
       const assistantMsg = await sendMessage(activeSessionId, 'assistant', finalText)
       setMessages((prev) => [...prev, assistantMsg])
@@ -149,10 +199,14 @@ export default function Home() {
   async function handleSend() {
     if (!activeSessionId || !input.trim() || sending) return
     const text = input
+    const currentAttachment = attachment
     setInput('')
     setLastUserText(text)
+    setAttachment(null)
+    setAttachError(null)
 
-    const userMsg = await sendMessage(activeSessionId, 'user', text)
+    const displayText = currentAttachment ? `📎 ${currentAttachment.name}\n${text}` : text
+    const userMsg = await sendMessage(activeSessionId, 'user', displayText)
     const newMessages = [...messages, userMsg]
     setMessages(newMessages)
 
@@ -160,7 +214,7 @@ export default function Home() {
       role: m.role as 'user' | 'assistant',
       content: m.content,
     }))
-    await runAssistant(historyForModel)
+    await runAssistant(historyForModel, currentAttachment)
   }
 
   async function handleRegenerate() {
@@ -377,13 +431,38 @@ export default function Home() {
             )
           )}
 
+          {attachment && (
+            <div className="flex items-center gap-2 text-xs bg-gray-100 dark:bg-gray-800 rounded px-2 py-1 self-start">
+              <span>📎 {attachment.name}</span>
+              <button onClick={clearAttachment} className="text-gray-500 hover:text-red-500">
+                ✕
+              </button>
+            </div>
+          )}
+          {attachError && <p className="text-xs text-red-500">{attachError}</p>}
+
           <div className="flex gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={ALLOWED_ATTACHMENT_TYPES.join(',')}
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="shrink-0 border dark:border-gray-600 rounded px-3 py-2"
+              disabled={sending || !activeSessionId}
+              title="파일 첨부 (이미지 / PDF / 텍스트, 3MB 이하)"
+            >
+              📎
+            </button>
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               className="flex-1 min-w-0 border dark:border-gray-600 rounded px-3 py-2 bg-transparent"
-              placeholder="메시지를 입력하세요"
+              placeholder="메시지를 입력하세요 (그림을 그려달라고 요청할 수도 있어요)"
               disabled={sending || !activeSessionId}
             />
             <button

@@ -1,18 +1,20 @@
 type ChatRole = 'user' | 'assistant'
 type HistoryItem = { role: ChatRole; content: string }
 type GeoLocation = { lat: number; lng: number } | null
+export type Attachment = { name: string; mimeType: string; data: string }
 
 export async function streamAssistantReply(
   history: HistoryItem[],
   onDelta: (textSoFar: string) => void,
   signal: AbortSignal,
   location?: GeoLocation,
-  onStatus?: (status: string) => void
+  onStatus?: (status: string) => void,
+  attachment?: Attachment | null
 ): Promise<string> {
   const res = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages: history, location }),
+    body: JSON.stringify({ messages: history, location, attachment: attachment ?? null }),
     signal,
   })
 
