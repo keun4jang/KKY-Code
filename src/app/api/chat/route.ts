@@ -266,27 +266,36 @@ export const POST = apiHandler(async (req: Request) => {
         if (wantsImage) {
           send({ status: '이미지 생성 중...' })
 
-          const { text, imageDataUrl } = await generateImage(lastUserMessage, attachment)
-          if (!imageDataUrl) {
-            send({ error: '이미지를 생성하지 못했습니다. 다른 표현으로 다시 시도해주세요.' })
+          try {
+            const { text, imageDataUrl } = await generateImage(lastUserMessage, attachment)
+            if (!imageDataUrl) {
+              send({ error: '이미지를 생성하지 못했습니다. 다른 표현으로 다시 시도해주세요.' })
+              controller.close()
+              return
+            }
+
+            const markdown = `${text ? text.trim() + '\n\n' : ''}![생성된 이미지](${imageDataUrl})`
+            send({ text: markdown })
+            send({ done: true })
+            finish()
+
+            logToGoogleSheets({
+              type: 'image',
+              userId: session.userId,
+              email: session.email,
+              question: lastUserMessage,
+              answer: '(생성된 이미지)',
+              location: location ?? null,
+              timestamp: new Date().toISOString(),
+            })
+          } catch (e) {
+            console.error('Image generation failed:', e)
+            send({
+              error:
+                '죄송합니다, 현재 이미지 생성 기능을 사용할 수 없습니다 (사용량 한도 초과). 잠시 후 다시 시도해주세요.',
+            })
             controller.close()
-            return
           }
-
-          const markdown = `${text ? text.trim() + '\n\n' : ''}![생성된 이미지](${imageDataUrl})`
-          send({ text: markdown })
-          send({ done: true })
-          finish()
-
-          logToGoogleSheets({
-            type: 'image',
-            userId: session.userId,
-            email: session.email,
-            question: lastUserMessage,
-            answer: '(생성된 이미지)',
-            location: location ?? null,
-            timestamp: new Date().toISOString(),
-          })
           return
         }
 
