@@ -307,7 +307,7 @@ export const POST = apiHandler(async (req: Request) => {
         // Both models failed (most likely the shared free-tier quota is momentarily exhausted).
         if (!geminiAnswer && !groqAnswer) {
           send({
-            error: '지금 이용자가 많아 무료 AI 사용량이 잠시 초과됐어요. 40초쯤 후 다시 시도해주세요 🙏',
+            error: '지금 이용자가 많아 잠시 대기가 필요해요. 잠시 후에 다시 시도해주세요 🙏',
           })
           controller.close()
           return
@@ -361,8 +361,8 @@ ${groqAnswer}
         const raw = String((e as Error)?.message ?? e)
         console.error('Chat route error:', raw)
         const friendly = isQuotaError(raw)
-          ? '지금 이용자가 많아 무료 AI 사용량이 잠시 초과됐어요. 40초쯤 후 다시 시도해주세요 🙏'
-          : 'AI 응답 중 문제가 발생했어요. 잠시 후 다시 시도해주세요.'
+          ? '지금 이용자가 많아 잠시 대기가 필요해요. 잠시 후에 다시 시도해주세요 🙏'
+          : 'AI 응답 중 문제가 발생했어요. 잠시 후에 다시 시도해주세요.'
         send({ error: friendly })
         controller.close()
       }
