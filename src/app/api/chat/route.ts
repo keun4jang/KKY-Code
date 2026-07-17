@@ -41,22 +41,36 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3)
   return lastRes as Response
 }
 
-async function callGemini(contents: unknown, systemText: string): Promise<string> {
-  const res = await fetchWithRetry(
-    `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents,
-        tools: [{ google_search: {} }],
-        systemInstruction: { parts: [{ text: systemText }] },
-      }),
+function isQuotaError(msg: string): boolean {
+  return /\b429\b|RESOURCE_EXHAUSTED|quota|rate limit/i.test(msg)
+}
+
+// Returns the answer text, or null if the call failed (e.g. quota exhausted).
+// Never throws, so the caller can gracefully fall back to the other model.
+async function callGemini(contents: unknown, systemText: string): Promise<string | null> {
+  try {
+    const res = await fetchWithRetry(
+      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents,
+          tools: [{ google_search: {} }],
+          systemInstruction: { parts: [{ text: systemText }] },
+        }),
+      }
+    )
+    if (!res.ok) {
+      console.error('Gemini call failed:', res.status, await res.text())
+      return null
     }
-  )
-  if (!res.ok) throw new Error(await res.text())
-  const data = await res.json()
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+    const data = await res.json()
+    return data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+  } catch (e) {
+    console.error('Gemini call error:', e)
+    return null
+  }
 }
 
 async function callGroq(
@@ -83,6 +97,55 @@ async function callGroq(
   } catch {
     return null
   }
+}
+
+// Streams a Groq chat completion. Used for the final synthesis pass so that the
+// scarce Gemini free-tier quota is only spent once per question (on the grounded answer).
+async function streamGroqText(
+  messages: { role: string; content: string }[],
+  onDelta: (text: string) => void
+): Promise<string> {
+  const res = await fetchWithRetry(
+    'https://api.groq.com/openai/v1/chat/completions',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROQ_API_KEY}` },
+      body: JSON.stringify({ model: GROQ_MODEL, messages, stream: true }),
+    },
+    2
+  )
+  if (!res.ok || !res.body) throw new Error(await res.text())
+
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let fullText = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue
+      const jsonStr = line.slice(6).trim()
+      if (!jsonStr || jsonStr === '[DONE]') continue
+      try {
+        const parsed = JSON.parse(jsonStr)
+        const text = parsed.choices?.[0]?.delta?.content
+        if (text) {
+          fullText += text
+          onDelta(text)
+        }
+      } catch {
+        // ignore partial json chunks
+      }
+    }
+  }
+
+  return fullText
 }
 
 async function streamGeminiText(
@@ -207,24 +270,30 @@ export const POST = apiHandler(async (req: Request) => {
         controller.close()
       }
 
+      let streamedAny = false
+      const logAnswer = (answer: string) =>
+        logToGoogleSheets({
+          type: 'chat',
+          userId: session.userId,
+          email: session.email,
+          question: lastUserMessage,
+          answer,
+          location: location ?? null,
+          timestamp: new Date().toISOString(),
+        })
+
       try {
         if (attachment) {
           send({ status: '파일 분석 중...' })
 
-          const fullAnswer = await streamGeminiText(contents, systemText, (text) => send({ text }))
+          const fullAnswer = await streamGeminiText(contents, systemText, (text) => {
+            streamedAny = true
+            send({ text })
+          })
 
           send({ done: true })
           finish()
-
-          logToGoogleSheets({
-            type: 'chat',
-            userId: session.userId,
-            email: session.email,
-            question: lastUserMessage,
-            answer: fullAnswer,
-            location: location ?? null,
-            timestamp: new Date().toISOString(),
-          })
+          logAnswer(fullAnswer)
           return
         }
 
@@ -235,9 +304,21 @@ export const POST = apiHandler(async (req: Request) => {
           callGroq(messages, systemText),
         ])
 
-        send({ status: '종합 답변 작성 중...' })
+        // Both models failed (most likely the shared free-tier quota is momentarily exhausted).
+        if (!geminiAnswer && !groqAnswer) {
+          send({
+            error: '지금 이용자가 많아 무료 AI 사용량이 잠시 초과됐어요. 40초쯤 후 다시 시도해주세요 🙏',
+          })
+          controller.close()
+          return
+        }
 
-        const synthesisPrompt = `사용자의 질문: "${lastUserMessage}"
+        let fullAnswer = ''
+        if (geminiAnswer && groqAnswer) {
+          // Both answered → combine them with Groq (keeps Gemini usage at one call per question).
+          send({ status: '종합 답변 작성 중...' })
+
+          const synthesisPrompt = `사용자의 질문: "${lastUserMessage}"
 
 아래는 서로 다른 AI 모델이 생성한 답변 두 개입니다.
 
@@ -245,30 +326,44 @@ export const POST = apiHandler(async (req: Request) => {
 ${geminiAnswer}
 
 [답변 B]
-${groqAnswer ?? '(응답 없음)'}
+${groqAnswer}
 
 두 답변을 비교해서 더 정확하고 풍부한 하나의 최종 답변을 작성해주세요. 서로 보완되는 정보는 합치고, 상충되는 내용이 있으면 더 신뢰할 수 있는 쪽을 따르세요. 최종 답변만 자연스러운 한국어로 작성하고, "답변 A"나 "답변 B" 같은 표현은 쓰지 마세요.`
 
-        const fullAnswer = await streamGeminiText(
-          [{ role: 'user', parts: [{ text: synthesisPrompt }] }],
-          systemText,
-          (text) => send({ text })
-        )
+          try {
+            fullAnswer = await streamGroqText(
+              [
+                { role: 'system', content: systemText },
+                { role: 'user', content: synthesisPrompt },
+              ],
+              (text) => {
+                streamedAny = true
+                send({ text })
+              }
+            )
+          } catch (e) {
+            console.error('Synthesis failed, falling back to Gemini answer:', e)
+            if (!streamedAny) {
+              fullAnswer = geminiAnswer
+              send({ text: fullAnswer })
+            }
+          }
+        } else {
+          // Only one model answered → send it directly, no extra call needed.
+          fullAnswer = (geminiAnswer ?? groqAnswer) as string
+          send({ text: fullAnswer })
+        }
 
         send({ done: true })
         finish()
-
-        logToGoogleSheets({
-          type: 'chat',
-          userId: session.userId,
-          email: session.email,
-          question: lastUserMessage,
-          answer: fullAnswer,
-          location: location ?? null,
-          timestamp: new Date().toISOString(),
-        })
+        logAnswer(fullAnswer)
       } catch (e) {
-        send({ error: String((e as Error)?.message ?? e) })
+        const raw = String((e as Error)?.message ?? e)
+        console.error('Chat route error:', raw)
+        const friendly = isQuotaError(raw)
+          ? '지금 이용자가 많아 무료 AI 사용량이 잠시 초과됐어요. 40초쯤 후 다시 시도해주세요 🙏'
+          : 'AI 응답 중 문제가 발생했어요. 잠시 후 다시 시도해주세요.'
+        send({ error: friendly })
         controller.close()
       }
     },
