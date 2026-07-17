@@ -25,12 +25,6 @@
       "skillPath": "skills/remotion-create/SKILL.md",
       "computedHash": "39e6cab17355496309d304b317db56057e6386d490c8f92664343cdd0cb3c933"
     },
-    "remotion-docs": {
-      "source": "remotion-dev/skills",
-      "sourceType": "github",
-      "skillPath": "skills/remotion-docs/SKILL.md",
-      "computedHash": "ea844b9f52d471ecb0d2f56c83e52b7caad59b8ce77ff1eed5bfa3925192e016"
-    },
     "remotion-interactivity": {
       "source": "remotion-dev/skills",
       "sourceType": "github",
