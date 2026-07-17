@@ -263,6 +263,12 @@ export default function Home() {
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         } md:translate-x-0`}
       >
+        <div className="flex items-center gap-2 px-1 pb-1">
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center text-base bg-gradient-to-br from-indigo-500 to-violet-500 shadow">
+            🤖
+          </div>
+          <span className="font-extrabold tracking-tight brand-text">KKYCODE AI</span>
+        </div>
         <p className="text-[11px] text-center text-green-600 dark:text-green-400 font-semibold">
           🎉 완전 무료로 이용 가능한 AI 챗봇
         </p>
@@ -277,7 +283,7 @@ export default function Home() {
             handleNewSession()
             setSidebarOpen(false)
           }}
-          className="w-full bg-black dark:bg-white text-white dark:text-black rounded px-3 py-2"
+          className="btn-primary w-full rounded-xl px-3 py-2.5"
         >
           + 새 채팅
         </button>
@@ -286,15 +292,17 @@ export default function Home() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="채팅 검색"
-          className="w-full border dark:border-gray-600 rounded px-2 py-1 text-sm bg-transparent"
+          className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-2.5 py-1.5 text-sm bg-transparent"
         />
 
         <div className="flex-1 overflow-y-auto space-y-1">
           {filteredSessions.map((s) => (
             <div
               key={s.id}
-              className={`group flex items-center rounded ${
-                activeSessionId === s.id ? 'bg-gray-200 dark:bg-gray-700' : ''
+              className={`group flex items-center rounded-lg transition-colors ${
+                activeSessionId === s.id
+                  ? 'bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300'
+                  : 'hover:bg-gray-100 dark:hover:bg-gray-800'
               }`}
             >
               <button
@@ -320,7 +328,7 @@ export default function Home() {
           <p className="truncate text-gray-500">{email}</p>
           <button
             onClick={() => setSettingsOpen(true)}
-            className="w-full text-left hover:underline"
+            className="w-full text-left rounded-md px-1.5 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
           >
             ⚙️ 설정
           </button>
@@ -341,13 +349,14 @@ export default function Home() {
       )}
 
       <main className="flex-1 flex flex-col min-w-0">
-        <div className="md:hidden p-2 pt-[max(0.5rem,env(safe-area-inset-top))] border-b dark:border-gray-700">
+        <div className="md:hidden flex items-center gap-2 p-2 pt-[max(0.5rem,env(safe-area-inset-top))] border-b dark:border-gray-700">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="text-sm border dark:border-gray-600 rounded px-2 py-1"
+            className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-2.5 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
           >
             ☰ 메뉴
           </button>
+          <span className="font-extrabold tracking-tight brand-text">KKYCODE AI</span>
         </div>
 
         {fetchError && (
@@ -359,14 +368,16 @@ export default function Home() {
         <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-4 space-y-4">
           {!activeSessionId && (
             <div className="h-full flex flex-col items-center justify-center text-center gap-3 text-gray-500 dark:text-gray-400">
+              <div className="w-16 h-16 rounded-3xl flex items-center justify-center text-3xl bg-gradient-to-br from-indigo-500 to-violet-500 shadow-lg mb-1">
+                🤖
+              </div>
+              <p className="text-lg font-extrabold brand-text">무엇이든 물어보세요</p>
               <p className="text-sm">
-                아직 대화가 없습니다.
-                <br />
                 왼쪽 위 <span className="font-semibold text-black dark:text-white">&quot;+ 새 채팅&quot;</span> 버튼을 눌러 대화를 시작해보세요!
               </p>
               <button
                 onClick={handleNewSession}
-                className="bg-black dark:bg-white text-white dark:text-black rounded px-4 py-2 text-sm"
+                className="btn-primary rounded-xl px-5 py-2.5 text-sm"
               >
                 + 새 채팅 시작하기
               </button>
@@ -384,10 +395,10 @@ export default function Home() {
           {messages.map((m) => (
             <div key={m.id} className={m.role === 'user' ? 'text-right' : 'text-left'}>
               <div
-                className={`inline-block rounded px-3 py-2 max-w-[80%] break-words text-left ${
+                className={`inline-block px-3.5 py-2.5 max-w-[85%] break-words text-left shadow-sm ${
                   m.role === 'user'
-                    ? 'bg-black text-white dark:bg-white dark:text-black'
-                    : 'bg-gray-100 dark:bg-gray-800'
+                    ? 'rounded-2xl rounded-br-md bg-gradient-to-br from-indigo-500 to-violet-500 [&_*]:!text-white'
+                    : 'rounded-2xl rounded-bl-md bg-gray-100 dark:bg-gray-800 border border-gray-200/60 dark:border-gray-700/60'
                 }`}
               >
                 <MarkdownMessage content={m.content} />
@@ -397,11 +408,16 @@ export default function Home() {
 
           {sending && (
             <div className="text-left">
-              <div className="inline-block rounded px-3 py-2 max-w-[80%] bg-gray-100 dark:bg-gray-800">
+              <div className="inline-block rounded-2xl rounded-bl-md px-3.5 py-2.5 max-w-[85%] bg-gray-100 dark:bg-gray-800 border border-gray-200/60 dark:border-gray-700/60 shadow-sm">
                 {streamingText ? (
                   <MarkdownMessage content={streamingText} />
                 ) : (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 italic">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 italic flex items-center gap-1.5">
+                    <span className="inline-flex gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce [animation-delay:-0.3s]" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce [animation-delay:-0.15s]" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" />
+                    </span>
                     {statusText || '생각 중...'}
                   </p>
                 )}
@@ -416,7 +432,7 @@ export default function Home() {
           {sending ? (
             <button
               onClick={handleStop}
-              className="self-start text-sm border rounded px-3 py-1 text-red-600 border-red-300"
+              className="self-start text-sm border rounded-lg px-3 py-1 text-red-600 border-red-300 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
             >
               ⏹ 응답 정지
             </button>
@@ -424,7 +440,7 @@ export default function Home() {
             messages.length > 0 && (
               <button
                 onClick={handleRegenerate}
-                className="self-start text-sm border dark:border-gray-600 rounded px-3 py-1"
+                className="self-start text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               >
                 🔄 다시 생성
               </button>
@@ -432,9 +448,9 @@ export default function Home() {
           )}
 
           {attachment && (
-            <div className="flex items-center gap-2 text-xs bg-gray-100 dark:bg-gray-800 rounded px-2 py-1 self-start">
+            <div className="flex items-center gap-2 text-xs bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 rounded-lg px-2.5 py-1.5 self-start">
               <span>📎 {attachment.name}</span>
-              <button onClick={clearAttachment} className="text-gray-500 hover:text-red-500">
+              <button onClick={clearAttachment} className="text-indigo-400 hover:text-red-500">
                 ✕
               </button>
             </div>
@@ -451,7 +467,7 @@ export default function Home() {
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="shrink-0 border dark:border-gray-600 rounded px-3 py-2"
+              className="shrink-0 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
               disabled={sending || !activeSessionId}
               title="파일 첨부 (이미지 / PDF / 텍스트, 3MB 이하)"
             >
@@ -461,13 +477,13 @@ export default function Home() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              className="flex-1 min-w-0 border dark:border-gray-600 rounded px-3 py-2 bg-transparent"
+              className="flex-1 min-w-0 border border-gray-300 dark:border-gray-600 rounded-xl px-3.5 py-2 bg-transparent"
               placeholder="메시지를 입력하세요"
               disabled={sending || !activeSessionId}
             />
             <button
               onClick={handleSend}
-              className="shrink-0 bg-black dark:bg-white text-white dark:text-black rounded px-4 py-2"
+              className="btn-primary shrink-0 rounded-xl px-4 py-2 disabled:opacity-50"
               disabled={sending || !activeSessionId}
             >
               보내기

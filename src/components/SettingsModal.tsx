@@ -135,7 +135,7 @@ export function SettingsModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg rounded-lg bg-white dark:bg-gray-900 text-black dark:text-white shadow-xl flex flex-col max-h-[85vh]"
+        className="w-full max-w-lg rounded-2xl bg-white dark:bg-gray-900 text-black dark:text-white shadow-2xl flex flex-col max-h-[85vh]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b dark:border-gray-700 p-4">
@@ -154,10 +154,10 @@ export function SettingsModal({
             <button
               key={t.value}
               onClick={() => setTab(t.value)}
-              className={`flex-1 py-2 ${
+              className={`flex-1 py-2 transition-colors ${
                 tab === t.value
-                  ? "border-b-2 border-black dark:border-white font-semibold"
-                  : "text-gray-500"
+                  ? "border-b-2 border-indigo-500 text-indigo-600 dark:text-indigo-400 font-semibold"
+                  : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
               }`}
             >
               {t.label}
@@ -179,8 +179,10 @@ export function SettingsModal({
                         <button
                           key={opt.value}
                           onClick={() => setTheme(opt.value)}
-                          className={`flex-1 text-sm rounded border dark:border-gray-600 px-2 py-1.5 ${
-                            theme === opt.value ? "bg-black text-white dark:bg-white dark:text-black" : ""
+                          className={`flex-1 text-sm rounded-lg border px-2 py-1.5 transition-colors ${
+                            theme === opt.value
+                              ? "border-transparent bg-gradient-to-br from-indigo-500 to-violet-500 text-white"
+                              : "border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800"
                           }`}
                         >
                           {opt.label}
@@ -213,7 +215,7 @@ export function SettingsModal({
                   <button
                     onClick={handleSaveGeneral}
                     disabled={savingGeneral}
-                    className="w-full bg-black dark:bg-white text-white dark:text-black rounded px-3 py-2 text-sm"
+                    className="btn-primary w-full rounded-lg px-3 py-2 text-sm"
                   >
                     {savingGeneral ? "저장 중..." : "저장"}
                   </button>
@@ -265,7 +267,7 @@ export function SettingsModal({
                   <button
                     onClick={handleSaveAccount}
                     disabled={savingAccount}
-                    className="w-full bg-black dark:bg-white text-white dark:text-black rounded px-3 py-2 text-sm"
+                    className="btn-primary w-full rounded-lg px-3 py-2 text-sm"
                   >
                     {savingAccount ? "저장 중..." : "저장"}
                   </button>
@@ -312,7 +314,7 @@ export function SettingsModal({
                     <button
                       onClick={handleSendFeedback}
                       disabled={sendingFeedback || !feedbackText.trim()}
-                      className="mt-2 w-full bg-black dark:bg-white text-white dark:text-black rounded px-3 py-2 text-sm disabled:opacity-50"
+                      className="btn-primary mt-2 w-full rounded-lg px-3 py-2 text-sm disabled:opacity-50"
                     >
                       {sendingFeedback ? "전송 중..." : "피드백 보내기"}
                     </button>
